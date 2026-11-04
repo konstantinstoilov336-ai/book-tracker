@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Book Tracker">
+<title>Book Tracker</title>
+<!-- The public page of the web version. It holds nothing personal: once the access key is in,
+     it loads the app itself (app/index.html) from the private data repository and runs it. -->
+<style>
+  :root { --bg: #f6f5f1; --surface: #fff; --ink: #1d1d1b; --ink-3: #77756e; --line: #e3e1da; --accent: #1f6f5c; --red: #b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --surface: #201f1d; --ink: #eceae4; --ink-3: #9b988f; --line: #34332f; --accent: #4fb59a; --red: #f08a80; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }
+  .card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: var(--ink-3); margin: 0 0 18px; font-size: 14px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+  input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font: inherit; }
+  button { margin-top: 20px; width: 100%; padding: 12px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+  button:disabled { opacity: .6; }
+  .err { color: var(--red); font-size: 13.5px; margin-top: 12px; min-height: 1em; }
+  .spin { text-align: center; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="card" id="card"><div class="spin">Opening Book Tracker…</div></div>
+<script>
+const KEY = "bt.github";
+const owner = location.hostname.split(".")[0];  // <user>.github.io
+const cfg = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } })();
+
+async function fetchApp(c) {
+  const r = await fetch(`${c.api || "https://api.github.com"}/repos/${c.owner}/${c.repo}/contents/app/index.html`, {
+    cache: "no-store", headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" } });
+  if (r.status === 401) throw new Error("GitHub didn't accept that access key.");
+  if (r.status === 404) throw new Error(`Couldn't find the app in ${c.owner}/${c.repo}. Check the access key includes that repository, and that Book Tracker on your PC is connected to GitHub.`);
+  if (!r.ok) throw new Error(`GitHub answered ${r.status}.`);
+  return r.text();
+}
+function run(html, c) {
+  const boot = `<script>window.BT_WEB = ${JSON.stringify(c).replace(/</g, "\\u003c")};<\/script>`;
+  document.open();
+  document.write(html.replace(/<head>/i, "<head>" + boot));
+  document.close();
+}
+function form(msg) {
+  const card = document.getElementById("card");
+  card.innerHTML = `<h1>Book Tracker</h1><p>Enter your GitHub access key once on this device. It's kept only in this browser.</p>
+    <label for="o">GitHub user name</label><input id="o" autocomplete="username" value="${owner}">
+    <label for="r">Data repository</label><input id="r" value="book-tracker-data">
+    <label for="t">Access key</label><input id="t" type="password" autocomplete="current-password" placeholder="github_pat_…">
+    <button id="go">Open Book Tracker</button><div class="err" id="err"></div>`;
+  document.getElementById("err").textContent = msg || "";
+  document.getElementById("go").onclick = async () => {
+    const c = { owner: document.getElementById("o").value.trim(), repo: document.getElementById("r").value.trim(),
+                token: document.getElementById("t").value.trim() };
+    const b = document.getElementById("go"); b.disabled = true; b.textContent = "Checking…";
+    try { const html = await fetchApp(c); localStorage.setItem(KEY, JSON.stringify(c)); run(html, c); }
+    catch (e) { document.getElementById("err").textContent = e.message; b.disabled = false; b.textContent = "Open Book Tracker"; }
+  };
+}
+if (cfg) fetchApp(cfg).then(html => run(html, cfg), e => form(e.message));
+else form();
+</script>
+</body>
+</html>

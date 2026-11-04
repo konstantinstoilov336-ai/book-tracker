@@ -36,16 +36,35 @@
 const KEY = "bt.github";
 const owner = location.hostname.split(".")[0];  // <user>.github.io
 const cfg = (() => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } })();
+const repoParam = (new URLSearchParams(location.search).get("repo") || "").replace(/[^\w.-]/g, "");
+// The shipping helper (their own repository) gets the page in Bulgarian.
+const BG = /shipping/i.test(repoParam || (cfg && cfg.repo) || "");
+const T = BG ? {
+  opening: "Отваряне…", intro: "Въведи ключа си за достъп до GitHub веднъж на това устройство. Пази се само в този браузър.",
+  user: "Потребителско име в GitHub", repo: "Хранилище", key: "Ключ за достъп", open: "Отвори", checking: "Проверка…",
+  offline: "Няма връзка с GitHub — провери интернета и натисни „Отвори“.",
+  badKey: "GitHub не прие този ключ — може да е изтекъл или сменен. Постави актуалния.",
+  noApp: (o, r) => `Приложението не е намерено в ${o}/${r}. Провери дали ключът има достъп до това хранилище.`,
+  answered: s => `GitHub отговори с ${s}.`,
+} : {
+  opening: "Opening Book Tracker…", intro: "Enter your GitHub access key once on this device. It's kept only in this browser.",
+  user: "GitHub user name", repo: "Data repository", key: "Access key", open: "Open Book Tracker", checking: "Checking…",
+  offline: "Couldn't reach GitHub — check the internet connection, then tap Open Book Tracker.",
+  badKey: "GitHub didn't accept that access key — it may have expired or been replaced. Paste the current one.",
+  noApp: (o, r) => `Couldn't find the app in ${o}/${r}. Check the access key includes that repository, and that Book Tracker on your PC is connected to GitHub.`,
+  answered: s => `GitHub answered ${s}.`,
+};
+if (BG) { document.documentElement.lang = "bg"; document.querySelector(".spin").textContent = T.opening; }
 
 async function fetchApp(c) {
   let r;
   try {
     r = await fetch(`${c.api || "https://api.github.com"}/repos/${c.owner}/${c.repo}/contents/app/index.html`, {
       cache: "no-store", headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github.raw+json" } });
-  } catch { throw new Error("Couldn't reach GitHub — check the internet connection, then tap Open Book Tracker."); }
-  if (r.status === 401) throw new Error("GitHub didn't accept that access key — it may have expired or been replaced. Paste the current one.");
-  if (r.status === 404) throw new Error(`Couldn't find the app in ${c.owner}/${c.repo}. Check the access key includes that repository, and that Book Tracker on your PC is connected to GitHub.`);
-  if (!r.ok) throw new Error(`GitHub answered ${r.status}.`);
+  } catch { throw new Error(T.offline); }
+  if (r.status === 401) throw new Error(T.badKey);
+  if (r.status === 404) throw new Error(T.noApp(c.owner, c.repo));
+  if (!r.ok) throw new Error(T.answered(r.status));
   return r.text();
 }
 function run(html, c) {
@@ -60,18 +79,18 @@ function run(html, c) {
 }
 function form(msg) {
   const card = document.getElementById("card");
-  card.innerHTML = `<h1>Book Tracker</h1><p>Enter your GitHub access key once on this device. It's kept only in this browser.</p>
-    <label for="o">GitHub user name</label><input id="o" autocomplete="username" value="${owner}">
-    <label for="r">Data repository</label><input id="r" value="${(new URLSearchParams(location.search).get("repo") || "book-tracker-data").replace(/[^\w.-]/g, "")}">
-    <label for="t">Access key</label><input id="t" type="password" autocomplete="current-password" placeholder="github_pat_…">
-    <button id="go">Open Book Tracker</button><div class="err" id="err"></div>`;
+  card.innerHTML = `<h1>Book Tracker</h1><p>${T.intro}</p>
+    <label for="o">${T.user}</label><input id="o" autocomplete="username" value="${owner}">
+    <label for="r">${T.repo}</label><input id="r" value="${repoParam || "book-tracker-data"}">
+    <label for="t">${T.key}</label><input id="t" type="password" autocomplete="current-password" placeholder="github_pat_…">
+    <button id="go">${T.open}</button><div class="err" id="err"></div>`;
   document.getElementById("err").textContent = msg || "";
   document.getElementById("go").onclick = async () => {
     const c = { owner: document.getElementById("o").value.trim(), repo: document.getElementById("r").value.trim(),
                 token: document.getElementById("t").value.trim() };
-    const b = document.getElementById("go"); b.disabled = true; b.textContent = "Checking…";
+    const b = document.getElementById("go"); b.disabled = true; b.textContent = T.checking;
     try { const html = await fetchApp(c); localStorage.setItem(KEY, JSON.stringify(c)); run(html, c); }
-    catch (e) { document.getElementById("err").textContent = e.message; b.disabled = false; b.textContent = "Open Book Tracker"; }
+    catch (e) { document.getElementById("err").textContent = e.message; b.disabled = false; b.textContent = T.open; }
   };
 }
 if (cfg) fetchApp(cfg).then(html => run(html, cfg), e => form(e.message));

@@ -62,7 +62,7 @@ function form(msg) {
   const card = document.getElementById("card");
   card.innerHTML = `<h1>Book Tracker</h1><p>Enter your GitHub access key once on this device. It's kept only in this browser.</p>
     <label for="o">GitHub user name</label><input id="o" autocomplete="username" value="${owner}">
-    <label for="r">Data repository</label><input id="r" value="book-tracker-data">
+    <label for="r">Data repository</label><input id="r" value="${(new URLSearchParams(location.search).get("repo") || "book-tracker-data").replace(/[^\w.-]/g, "")}">
     <label for="t">Access key</label><input id="t" type="password" autocomplete="current-password" placeholder="github_pat_…">
     <button id="go">Open Book Tracker</button><div class="err" id="err"></div>`;
   document.getElementById("err").textContent = msg || "";
